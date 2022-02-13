@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
 set(CMAKE_CXX_STANDARD 20)
 project(wordle)
-add_executable(a.out words.cpp)
+add_executable(a.out words.cpp dict.cpp solver.cpp runner.cpp)
+include_directories(include)
