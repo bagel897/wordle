@@ -1,7 +1,65 @@
-from typing import List, Dict
+from __future__ import annotations
+from typing import List, Dict, Tuple
 import string
+import random
 
 a_ord = ord("a")
+
+
+def arrayToStr(input: List[str]) -> str:
+    result = ""
+    for char in input:
+        result += char
+    return result
+
+
+def getDict(size: int) -> List[str]:
+    dictionary_file = "words.txt"
+    dictionary = []
+    with open(dictionary_file) as f:
+        for word in f:
+            wordLen = len(word) - 1
+            if wordLen == size:
+                dictionary.append(word[:wordLen].lower())
+    return dictionary
+
+
+def guess(size, givenWord: str, guessedWord: str) -> str:
+    guess_counts: List[int] = [0 for _ in string.ascii_lowercase]
+    given_counts: List[int] = [0 for _ in string.ascii_lowercase]
+    result = ["B" for _ in range(size)]
+    for i in range(size):
+        guess_counts[ord(guessedWord[i]) - a_ord] += 1
+        given_counts[ord(givenWord[i]) - a_ord] += 1
+    for i in range(size):
+        if givenWord[i] == guessedWord[i]:
+            result[i] = "G"
+            given_counts[ord(givenWord[i]) - a_ord] -= 1
+    for i in range(size):
+        gord: int = ord(guessedWord[i]) - a_ord
+        if guess_counts[gord] >= given_counts[gord] and given_counts[gord] != 0:
+            result[i] = "Y"
+            given_counts[gord] -= 1
+    result_str: str = ""
+    for char in result:
+        result_str += char
+    return result_str
+
+
+class wordle:
+    dictionary: List[str]
+    size: int
+    word: str
+
+    def __init__(self, size: int):
+        self.dictionary = getDict(size)
+        self.size = size
+
+    def pickWord(self):
+        self.word = self.dictionary[random.randint(0, len(self.dictionary))]
+
+    def guess(self, givenWord: str, guessedWord: str) -> str:
+        return guess(self.size, givenWord, guessedWord)
 
 
 class wordSolver:
@@ -9,13 +67,7 @@ class wordSolver:
     size: int
 
     def __init__(self, size: int):
-        dictionary = "words.txt"
-        self.dictionary = []
-        with open(dictionary) as f:
-            for word in f:
-                wordLen = len(word) - 1
-                if wordLen == size:
-                    self.dictionary.append(word[:wordLen].lower())
+        self.dictionary = getDict(size)
         self.size = size
 
     def countByChar(self, wordList: List[str]) -> List[List[int]]:
@@ -27,7 +79,7 @@ class wordSolver:
                 counted[i][ord(word[i]) - a_ord] += 1
         return counted
 
-    def getNextWord(self, counted: List[List[int]], dictionary: List[str]):
+    def get_next_matrix(self, counted: List[List[int]], dictionary: List[str]) -> str:
         scores: Dict[str, int] = {}
         for word in dictionary:
             score: int = 0
@@ -78,31 +130,69 @@ class wordSolver:
                 newDict.append(word)
         return newDict
 
-    def runTurn(self, dictionary: List[str], guess: str):
-        userInput = input()
-        if userInput == "q":
-            return ""
-        if len(userInput) == self.size:
-            dictionary = self.filter(dictionary, userInput, guess)
-            if len(dictionary) == 1:
-                print(f"the only word is {dictionary[0]} Good Job")
-                return ""
-            counted = self.countByChar(dictionary)
-            guess = self.getNextWord(counted, dictionary)
-            print(guess)
-            self.runTurn(dictionary, guess)
-        else:
-            print("invalid input")
+    def filter_next(self, dictionary: List[str]) -> str:
+        results = {}
+        for try_guess in dictionary:
+            size = 0
+            for real_word in dictionary:
+                size += len(
+                    self.filter(
+                        dictionary, guess(self.size, try_guess, real_word), real_word
+                    )
+                )
+            results[guess] = abs(size - len(dictionary) * 1 / 2)
+        return min(results, key=results.get)
 
-    def runGame(self):
-        # start
-        dictionary = self.dictionary
-        counted = self.countByChar(dictionary)
-        guess = self.getNextWord(counted, dictionary)
-        print(guess)
-        self.runTurn(dictionary, guess)
+    def get_next(
+        self, dictionary: List[str], prev_guess: str, userInput: str, algorithm: int
+    ) -> Tuple[str, List[str]]:
+        if not userInput == "":
+            dictionary = self.filter(dictionary, userInput, prev_guess)
+        if len(dictionary) == 1:
+            return (dictionary[0], dictionary)
+        if len(dictionary) == 0:
+            return ("", dictionary)
+        if algorithm == 0:
+            counted = self.countByChar(dictionary)
+            guess = self.get_next_matrix(counted, dictionary)
+        else:
+            guess = self.filter_next(dictionary)
+        return (guess, dictionary)
+
+
+def runRound(solver: wordSolver, game: wordle, size: int, algorithm: int, userInput: bool = False) -> int:
+    game.pickWord()
+    dictionary = solver.dictionary
+    result: str = ""
+    guess: str = arrayToStr(["a" for _ in range(size)])
+    success: str = arrayToStr(["G" for _ in range(size)])
+
+    count = 0
+    while True:
+        guess, dictionary = solver.get_next(dictionary, guess, result, algorithm)
+        if guess == "":
+            return 100
+        if userInput:
+            print(guess)
+            result = input()
+        else:
+            result = game.guess(game.word, guess)
+        count += 1
+        if result == success:
+            return count
+        if count > 10:
+            return 101
+
+
+def runGame(size: int, count: int, userInput: bool = False):
+    solver = wordSolver(size)
+    game = wordle(size)
+    results = []
+    for _ in range(count):
+        results.append(runRound(solver, game, size, 0, userInput))
+    print(results)
 
 
 if __name__ == "__main__":
-    solver = wordSolver(5)
-    solver.runGame()
+     runGame(5, 10, True)
+    
